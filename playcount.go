@@ -2,26 +2,24 @@ package mpdfav
 
 import (
 	"log"
-	"time"
 	"strconv"
+	"time"
 )
 
 const (
-	event = "player"
 	songPlayedThresholdSeconds = 10
-	tickMillis = 900
-	playcountSticker = "playcount"
-	songStickerType = "song"
+	tickMillis                 = 900
+	playcountSticker           = "playcount"
 )
 
 type songStatusInfo struct {
 	StatusInfo Info
-	SongInfo Info
+	SongInfo   Info
 }
 
 func incSongPlayCount(songInfo *Info, mpdc *MPDClient) (int, error) {
 	value, err := mpdc.StickerGet(
-		songStickerType,
+		StickerSongType,
 		(*songInfo)["file"],
 		playcountSticker,
 	)
@@ -37,7 +35,7 @@ func incSongPlayCount(songInfo *Info, mpdc *MPDClient) (int, error) {
 	}
 	intval += 1
 	err = mpdc.StickerSet(
-		songStickerType,
+		StickerSongType,
 		(*songInfo)["file"],
 		playcountSticker,
 		strconv.Itoa(intval),
@@ -67,7 +65,7 @@ func checkSongChange(si *songStatusInfo, mpdc *MPDClient) error {
 			if err != nil {
 				return err
 			}
-			log.Println(si.SongInfo["Title"], " playcount=", playcount)
+			log.Println("Playcounts:", si.SongInfo["Title"], " playcount=", playcount)
 		}
 	}
 	si.StatusInfo = info
@@ -83,6 +81,20 @@ func updateSongInfo(si *songStatusInfo, mpdc *MPDClient) error {
 	return nil
 }
 
+func processStateUpdate(si *songStatusInfo, mpdc *MPDClient) error {
+	err := checkSongChange(si, mpdc)
+	if err != nil {
+		return err
+	}
+	// We store the current song after processing,
+	// since that should be the next song playing already.
+	err = updateSongInfo(si, mpdc)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func RecordPlayCounts(mpdc *MPDClient) {
 	mpdcIdle, err := ConnectDup(mpdc)
 	defer mpdcIdle.Close()
@@ -91,11 +103,11 @@ func RecordPlayCounts(mpdc *MPDClient) {
 	}
 	statusInfo, err := mpdc.Status()
 	if err != nil {
-		log.Println(err)
+		panic(err)
 	}
-	songInfo, err := mpdc.Status()
+	songInfo, err := mpdc.CurrentSong()
 	if err != nil {
-		log.Println(err)
+		panic(err)
 	}
 
 	si := songStatusInfo{}
@@ -103,16 +115,16 @@ func RecordPlayCounts(mpdc *MPDClient) {
 	si.SongInfo = songInfo
 
 	pollCh := time.Tick(tickMillis * time.Millisecond)
-	idleCh := make(chan Info)
+	idleCh := make(chan string)
 	ignorePoll := si.StatusInfo["state"] != "play"
 
 	go func() {
 		for {
-			idleInfo, err := mpdcIdle.Idle(event)
+			subsystem, err := mpdcIdle.Idle("player")
 			if err != nil {
-				log.Println(err)
+				panic(err)
 			} else {
-				idleCh <- idleInfo
+				idleCh <- subsystem
 			}
 		}
 	}()
@@ -121,27 +133,13 @@ func RecordPlayCounts(mpdc *MPDClient) {
 		select {
 		case <-pollCh:
 			if !ignorePoll {
-				log.Println("checking song info (Poll)")
-				err := checkSongChange(&si, mpdc)
-				if err != nil {
-					panic(err)
-				}
-				// We store the current song after processing,
-				// since that should be the next song playing already.
-				err = updateSongInfo(&si, mpdc)
+				err = processStateUpdate(&si, mpdc)
 				if err != nil {
 					panic(err)
 				}
 			}
 		case <-idleCh:
-			log.Println("checking song info (Idle)")
-			err := checkSongChange(&si, mpdc)
-			if err != nil {
-				panic(err)
-			}
-			// We store the current song after processing,
-			// since that should be the next song playing already.
-			err = updateSongInfo(&si, mpdc)
+			err := processStateUpdate(&si, mpdc)
 			if err != nil {
 				panic(err)
 			}
