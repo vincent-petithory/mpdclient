@@ -1,22 +1,29 @@
 package mpdfav
 
 import (
-	"fmt"
 	"errors"
-	"strconv"
-	"strings"
+	"fmt"
 	"net/textproto"
 	"regexp"
+	"strconv"
+	"strings"
 )
 
 const (
-	network = "tcp"
+	network      = "tcp"
 	infoFieldSep = ": "
+	StickerSongType = "song"
 )
+
+type ChannelMessage struct {
+	Channel string
+	Message string
+}
 
 type Info map[string]string
 
-var stickerGetRegexp = regexp.MustCompile("sticker: (.*)=(.*)")
+var stickerGetRegexp = regexp.MustCompile("sticker: (.+)=(.*)")
+var channelMessageRegexp = regexp.MustCompile("channel: (.+)\nmessage: (.+)")
 
 func (i *Info) Progress() (int, int) {
 	if t, ok := (*i)["time"]; ok {
@@ -45,6 +52,10 @@ type MPDClient struct {
 	Host string
 	Port uint
 	conn *textproto.Conn
+}
+
+func isMPDError(line string) bool {
+	return strings.Index(line, "ACK") != -1
 }
 
 func fillInfoUntilOK(c *MPDClient, info *Info) error {
@@ -115,10 +126,14 @@ func (c *MPDClient) StickerGet(stype, uri, stickerName string) (string, error) {
 	line, err := c.conn.ReadLine()
 	match := stickerGetRegexp.FindStringSubmatch(line)
 	if match == nil {
-		if strings.Index(line, "ACK") == -1 {
+		if !isMPDError(line) {
 			return "", nil
 		}
-		return "", errors.New("StickerGet: "+line)
+		// If we found the song but no sticker, return empty string
+		if strings.Index(line, "no such sticker") != -1 {
+			return "", nil
+		}
+		return "", errors.New("StickerGet: " + line)
 	}
 	value := match[2]
 	// OK line appears if it's ok,
@@ -128,7 +143,7 @@ func (c *MPDClient) StickerGet(stype, uri, stickerName string) (string, error) {
 		return "", err
 	}
 	if okLine != "OK" {
-		return "", errors.New("StickerGet didn't receive OK line: "+okLine)
+		return "", errors.New("StickerGet didn't receive OK line: " + okLine)
 	}
 	return value, nil
 }
@@ -149,22 +164,107 @@ func (c *MPDClient) StickerSet(stype, uri, stickerName, value string) error {
 
 	line, err := c.conn.ReadLine()
 	if line != "OK" {
-		return errors.New("StickerSet: "+line)
+		return errors.New("StickerSet: " + line)
 	}
 
 	return nil
 }
 
-func (c *MPDClient) Idle(subsystem string) (Info, error) {
+func (c *MPDClient) Subscribe(channel string) error {
+	id, err := c.conn.Cmd(fmt.Sprintf(
+		"subscribe \"%s\"",
+		channel,
+	))
+	if err != nil {
+		return err
+	}
+	c.conn.StartResponse(id)
+	defer c.conn.EndResponse(id)
+
+	line, err := c.conn.ReadLine()
+	if line != "OK" {
+		return errors.New("Subscribe: " + line)
+	}
+
+	return nil
+}
+
+func (c *MPDClient) Unsubscribe(channel string) error {
+	id, err := c.conn.Cmd(fmt.Sprintf(
+		"unsubscribe \"%s\"",
+		channel,
+	))
+	if err != nil {
+		return err
+	}
+	c.conn.StartResponse(id)
+	defer c.conn.EndResponse(id)
+
+	line, err := c.conn.ReadLine()
+	if line != "OK" {
+		return errors.New("Unsubscribe: " + line)
+	}
+
+	return nil
+}
+
+func (c *MPDClient) ReadMessages() ([]ChannelMessage, error) {
+	id, err := c.conn.Cmd("readmessages")
+	if err != nil {
+		return nil, err
+	}
+	c.conn.StartResponse(id)
+	defer c.conn.EndResponse(id)
+
+	msgs := make([]ChannelMessage, 0)
+	for {
+		channelOrOkline, err := c.conn.ReadLine()
+		if err != nil {
+			return msgs, err
+		}
+		if channelOrOkline == "OK" {
+			return msgs, nil
+		}
+		messageLine, err := c.conn.ReadLine()
+		match := channelMessageRegexp.FindStringSubmatch(fmt.Sprintf(`%s
+%s`, channelOrOkline, messageLine))
+		if match == nil {
+			return nil, errors.New(fmt.Sprintf("ReadMessages: bad channel/message response: %s,%s", channelOrOkline, messageLine))
+		}
+		msgs = append(msgs, ChannelMessage{match[1], match[2]})
+	}
+}
+
+func (c *MPDClient) SendMessage(channel, text string) error {
+	id, err := c.conn.Cmd(fmt.Sprintf(
+		"sendmessage \"%s\" \"%s\"",
+		channel,
+		text,
+	))
+	if err != nil {
+		return err
+	}
+	c.conn.StartResponse(id)
+	defer c.conn.EndResponse(id)
+
+	line, err := c.conn.ReadLine()
+	if line != "OK" {
+		return errors.New("SendMessage: " + line)
+	}
+
+	return nil
+}
+
+func (c *MPDClient) Idle(subsystems ...string) (string, error) {
 	var cmd string
-	if subsystem == "" {
+	if len(subsystems) == 0 {
 		cmd = "idle"
 	} else {
-		cmd = "idle " + subsystem
+		cmd = "idle " + strings.Join(subsystems, " ")
 	}
 	id, err := c.conn.Cmd(cmd)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	c.conn.StartResponse(id)
 	defer c.conn.EndResponse(id)
@@ -172,10 +272,10 @@ func (c *MPDClient) Idle(subsystem string) (Info, error) {
 	info := make(Info)
 	err = fillInfoUntilOK(c, &info)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	return info, nil
+	return info["changed"], nil
 }
 
 func (c *MPDClient) NoIdle() error {
@@ -218,9 +318,6 @@ func Connect(host string, port uint) (*MPDClient, error) {
 	if line[0:6] != "OK MPD" {
 		return nil, errors.New("MPD: not OK")
 	}
-	mpdc := MPDClient{}
-	mpdc.Host = host
-	mpdc.Port = port
-	mpdc.conn = conn
-	return &mpdc, nil
+
+	return &MPDClient{host, port, conn}, nil
 }

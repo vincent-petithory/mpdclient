@@ -1,7 +1,6 @@
 package mpdfav
 
 import (
-	_ "os"
 	"testing"
 )
 
@@ -59,3 +58,65 @@ func existingSticketGet(t *testing.T, mpdc *MPDClient) {
 	}
 }
 
+// TestSubscribeSimple checks it's fine to subscribe
+// then unsubscribe a channel
+func TestSubscribeUnsubscribeSimple(t *testing.T) {
+	mpdc, err := Connect(mpdHost, mpdPort)
+	defer mpdc.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = mpdc.Subscribe("ratings")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = mpdc.Unsubscribe("ratings")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestSendReadMessage tests we can send then
+// read a message sent on a channel
+func TestSendReadMessage(t *testing.T) {
+	mpdc, err := Connect(mpdHost, mpdPort)
+	defer mpdc.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const channel = "test-channel"
+
+	err = mpdc.Subscribe(channel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedMsgs := []ChannelMessage{
+		ChannelMessage{channel, "first message"},
+		ChannelMessage{channel, "second message"},
+	}
+	for _, channelMessage := range expectedMsgs {
+		err = mpdc.SendMessage(channelMessage.Channel, channelMessage.Message)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	msgs, err := mpdc.ReadMessages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != len(expectedMsgs) {
+		t.Fatalf("Expected %d messages, got %d", len(expectedMsgs), len(msgs))
+	}
+	for i, channelMessage := range msgs {
+		if channelMessage != expectedMsgs[i] {
+			t.Fatalf("%q != %q", channelMessage, expectedMsgs[i])
+		}
+	}
+
+	err = mpdc.Unsubscribe(channel)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
