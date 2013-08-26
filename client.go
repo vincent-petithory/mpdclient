@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	network      = "tcp"
-	infoFieldSep = ": "
+	network         = "tcp"
+	infoFieldSep    = ": "
 	StickerSongType = "song"
 )
 
