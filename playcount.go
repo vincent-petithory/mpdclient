@@ -96,11 +96,6 @@ func processStateUpdate(si *songStatusInfo, mpdc *MPDClient) error {
 }
 
 func RecordPlayCounts(mpdc *MPDClient) {
-	mpdcIdle, err := ConnectDup(mpdc)
-	defer mpdcIdle.Close()
-	if err != nil {
-		panic(err)
-	}
 	statusInfo, err := mpdc.Status()
 	if err != nil {
 		panic(err)
@@ -115,19 +110,7 @@ func RecordPlayCounts(mpdc *MPDClient) {
 	si.SongInfo = songInfo
 
 	pollCh := time.Tick(tickMillis * time.Millisecond)
-	idleCh := make(chan string)
 	ignorePoll := si.StatusInfo["state"] != "play"
-
-	go func() {
-		for {
-			subsystem, err := mpdcIdle.Idle("player")
-			if err != nil {
-				panic(err)
-			} else {
-				idleCh <- subsystem
-			}
-		}
-	}()
 
 	for {
 		select {
@@ -138,7 +121,7 @@ func RecordPlayCounts(mpdc *MPDClient) {
 					panic(err)
 				}
 			}
-		case <-idleCh:
+		case <-mpdc.Idle("player"):
 			err := processStateUpdate(&si, mpdc)
 			if err != nil {
 				panic(err)

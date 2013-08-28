@@ -9,6 +9,7 @@ import (
 
 const (
 	ratingSticker = "rating"
+	RatingsChannel = "ratings"
 )
 
 func rateSong(songInfo *Info, rateMsg string, mpdc *MPDClient) (int, error) {
@@ -58,7 +59,7 @@ func rateSong(songInfo *Info, rateMsg string, mpdc *MPDClient) (int, error) {
 }
 
 func ListenRatings(mpdc *MPDClient) {
-	err := mpdc.Subscribe("ratings")
+	err := mpdc.Subscribe(RatingsChannel)
 	if err != nil {
 		panic(err)
 	}
@@ -76,7 +77,7 @@ func ListenRatings(mpdc *MPDClient) {
 
 	go func() {
 		for {
-			subsystem, err := mpdc.Idle("message", "player")
+			subsystem := <-mpdc.Idle("message", "player")
 			if err != nil {
 				log.Println(err)
 			} else {
@@ -104,9 +105,9 @@ func ListenRatings(mpdc *MPDClient) {
 		select {
 		case channelMessage := <-msgsCh:
 			log.Println("Ratings: incoming message", channelMessage)
-			// We subscribed only to the "ratings" channel,
-			// so there's no need to check the message comes
-			// from that channel.
+			if channelMessage.Channel != RatingsChannel {
+				break
+			}
 
 			// FIXME find a way to Uidentify a client submitting a rating
 			thisClientId := "0"
@@ -118,11 +119,10 @@ func ListenRatings(mpdc *MPDClient) {
 				}
 			}
 			if !clientExists {
-				mpdc2, err := ConnectDup(mpdc)
 				if err == nil {
-					songInfo, err := mpdc2.CurrentSong()
+					songInfo, err := mpdc.CurrentSong()
 					if err == nil {
-						if rating, err := rateSong(&songInfo, channelMessage.Message, mpdc2); err != nil {
+						if rating, err := rateSong(&songInfo, channelMessage.Message, mpdc); err != nil {
 							log.Println(err)
 						} else {
 							clientsSentRating = append(clientsSentRating, thisClientId)
@@ -134,7 +134,7 @@ func ListenRatings(mpdc *MPDClient) {
 				} else {
 					log.Println(err)
 				}
-				mpdc2.Close()
+				mpdc.Close()
 			}
 		case statusInfo := <-playerCh:
 			if currentSongId != statusInfo["songid"] {
