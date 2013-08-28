@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"log"
+	"sync"
 )
 
 const (
@@ -53,7 +54,8 @@ type MPDClient struct {
 	Host string
 	Port uint
 	conn *textproto.Conn
-	idleState idleState
+	quitCh chan bool
+	c *sync.Cond
 	subscriptions []*idleSubscription
 }
 
@@ -257,10 +259,6 @@ func (c *MPDClient) SendMessage(channel, text string) error {
 	return nil
 }
 
-type idleState struct {
-	ch chan string
-}
-
 type idleSubscription struct {
 	ch chan string
 	active bool
@@ -279,13 +277,27 @@ func (c *MPDClient) Idle(subsystems ...string) chan string {
 }
 
 func (c *MPDClient) idle() {
+	initialized := false
 	for {
 		log.Println("Entering idle mode")
 
+		if initialized {
+			select {
+				case <-c.quitCh:
+					return
+				default:
+					c.c.L.Lock()
+					c.c.Wait()
+					c.c.L.Unlock()
+			}
+		} else {
+			initialized = true
+		}
 		id, err := c.conn.Cmd("idle")
 		if err != nil {
 			panic(err)
 		}
+
 		c.conn.StartResponse(id)
 
 		log.Println("Idle mode ready")
@@ -315,15 +327,9 @@ func (c *MPDClient) idle() {
 					}
 				}
 			}
+		} else {
+			fmt.Println("Noidle")
 		}
-		// Let's consume any pending state changes
-		log.Println("Exiting idle mode")
-		for what := range c.idleState.ch {
-			if what == "quit" {
-				return
-			}
-		}
-		log.Println("Exited idle mode")
 	}
 }
 
@@ -346,8 +352,9 @@ func (c *MPDClient) startResponse(id uint) {
 
 func (c *MPDClient) endResponse(id uint) {
 	c.conn.EndResponse(id)
-	c.noIdle()
-	c.idleState.ch <- "continue"
+	c.c.L.Lock()
+	c.c.Signal()
+	c.c.L.Unlock()
 }
 
 func (c *MPDClient) noIdle() error {
@@ -363,11 +370,14 @@ func (c *MPDClient) noIdle() error {
 
 func (c *MPDClient) Close() error {
 	if c.conn != nil {
+		c.c.L.Lock()
+		c.c.Signal()
+		c.c.L.Unlock()
+		close(c.quitCh)
 		err := c.noIdle()
 		if err != nil {
 			return err
 		}
-		c.idleState.ch <- "quit"
 
 		err = c.conn.Close()
 		if err != nil {
@@ -393,7 +403,9 @@ func Connect(host string, port uint) (*MPDClient, error) {
 		return nil, errors.New("MPD: not OK")
 	}
 
-	mpdc := &MPDClient{host, port, conn, idleState{make(chan string)}, []*idleSubscription{}}
+	var m sync.Mutex
+    c := sync.NewCond(&m)
+	mpdc := &MPDClient{host, port, conn, make(chan bool), c, []*idleSubscription{}}
 	go mpdc.idle()
 	return mpdc, nil
 }

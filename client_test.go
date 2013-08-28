@@ -17,43 +17,16 @@ type idleTestCase struct {
 	ExpectedSubsystemsNotifications []string
 }
 
-func TestIdleMode(t *testing.T) {
-	mpdc, err := Connect(mpdHost, mpdPort)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer mpdc.Close()
-	const event = "subscription"
-
-	done := make(chan struct{})
-	go func() {
-		v := <-mpdc.Idle(event)
-		if v != event {
-			t.Fatalf("Expected idle event %s, got %s", event, v)
-		}
-		v = <-mpdc.Idle(event)
-		if v != event {
-			t.Fatalf("Expected idle event %s, got %s", event, v)
-		}
-		close(done)
-	}()
-	err = mpdc.Subscribe("whatever")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = mpdc.Unsubscribe("whatever")
-	if err != nil {
-		t.Fatal(err)
-	}
-	<-done
-}
-
 func TestStatus(t *testing.T) {
 	mpdc, err := Connect(mpdHost, mpdPort)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer mpdc.Close()
+	defer func() {
+		fmt.Println("closing")
+		mpdc.Close()
+		fmt.Println("closed")
+	}()
 	info, err := mpdc.Status()
 	if err != nil {
 		t.Fatal(err)
@@ -61,6 +34,7 @@ func TestStatus(t *testing.T) {
 	if info == nil {
 		t.Fatalf("Unexpected nil value")
 	}
+	fmt.Println(info)
 }
 
 // TestUnexistingSticketGet tests that StickerGet
@@ -175,7 +149,39 @@ func TestSendReadMessage(t *testing.T) {
 	}
 }
 
-func TestIdleServesMultiple(t *testing.T) {
+func TestSimpleIdleMode(t *testing.T) {
+	mpdc, err := Connect(mpdHost, mpdPort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mpdc.Close()
+
+	done := make(chan struct{})
+	go func() {
+		v := <-mpdc.Idle("subscription")
+		if v != "subscription" {
+			t.Fatalf("Expected idle event %s, got %s", "subscription", v)
+		}
+		v = <-mpdc.Idle("message")
+		if v != "message" {
+			t.Fatalf("Expected idle event %s, got %s", "message", v)
+		}
+		close(done)
+	}()
+	err = mpdc.Subscribe("whatever")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = mpdc.SendMessage("whatever", "heya")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println("waiting")
+	<-done
+	fmt.Println("done")
+}
+
+func TestIdleModeSequence(t *testing.T) {
 	mpdc, err := Connect(mpdHost, mpdPort)
 	if err != nil {
 		t.Fatal(err)
@@ -227,7 +233,6 @@ func TestIdleServesMultiple(t *testing.T) {
 		}
 		select {
 		case <-idleTestsCompletions:
-			fmt.Println("oi ?")
 			n--
 		case <-timeout:
 			if n != 0 {
