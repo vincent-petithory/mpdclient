@@ -357,9 +357,6 @@ func (c *MPDClient) startResponse(id uint) {
 
 func (c *MPDClient) endResponse(id uint) {
 	c.conn.EndResponse(id)
-	c.c.L.Lock()
-	c.c.Signal()
-	c.c.L.Unlock()
 }
 
 func (c *MPDClient) noIdle() error {
@@ -375,15 +372,22 @@ func (c *MPDClient) noIdle() error {
 
 func (c *MPDClient) Close() error {
 	if c.conn != nil {
-		c.c.L.Lock()
-		c.c.Signal()
-		c.c.L.Unlock()
-		close(c.quitCh)
+		// Shut down idle mode
+		fmt.Println("sending quit command")
+		go func() {
+			c.quitCh<-true
+			fmt.Println("sent quit command")
+		}()
 		err := c.noIdle()
 		if err != nil {
 			return err
 		}
 
+		// Close connection properly
+		id, err := c.conn.Cmd("close")
+		c.conn.StartResponse(id)
+		c.conn.EndResponse(id)
+		c.conn.Close()
 		err = c.conn.Close()
 		if err != nil {
 			return err
@@ -411,6 +415,6 @@ func Connect(host string, port uint) (*MPDClient, error) {
 	var m sync.Mutex
     c := sync.NewCond(&m)
 	mpdc := &MPDClient{host, port, conn, make(chan bool), c, []*idleSubscription{}}
-	go mpdc.idle()
+	//go mpdc.idle()
 	return mpdc, nil
 }
