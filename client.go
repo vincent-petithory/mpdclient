@@ -277,6 +277,11 @@ func (c *MPDClient) Idle(subsystems ...string) chan string {
 }
 
 func (c *MPDClient) idle() {
+	defer func() {
+        if err := recover(); err != nil {
+            log.Println("Panic in Idle mode:", err)
+        }
+    }()
 	initialized := false
 	for {
 		log.Println("Entering idle mode")
