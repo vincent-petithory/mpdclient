@@ -68,7 +68,7 @@ func ListenRatings(mpdc *MPDClient) {
 	if err != nil {
 		panic(err)
 	}
-	currentSongId := statusInfo["songid"]
+	currentSongId := (*statusInfo)["songid"]
 
 	clientsSentRating := make([]string, 0)
 
@@ -95,7 +95,7 @@ func ListenRatings(mpdc *MPDClient) {
 					if err != nil {
 						log.Println(err)
 					}
-					playerCh <- statusInfo
+					playerCh <- *statusInfo
 				}
 			}
 		}
@@ -122,11 +122,11 @@ func ListenRatings(mpdc *MPDClient) {
 				if err == nil {
 					songInfo, err := mpdc.CurrentSong()
 					if err == nil {
-						if rating, err := rateSong(&songInfo, channelMessage.Message, mpdc); err != nil {
+						if rating, err := rateSong(songInfo, channelMessage.Message, mpdc); err != nil {
 							log.Println(err)
 						} else {
 							clientsSentRating = append(clientsSentRating, thisClientId)
-							log.Println(songInfo["Title"], " rating=", rating)
+							log.Println((*songInfo)["Title"], " rating=", rating)
 						}
 					} else {
 						log.Println(err)

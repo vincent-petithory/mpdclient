@@ -57,7 +57,7 @@ func checkSongChange(si *songStatusInfo, mpdc *MPDClient) error {
 		return err
 	}
 
-	if info["songid"] != si.StatusInfo["songid"] {
+	if (*info)["songid"] != si.StatusInfo["songid"] {
 		played := considerSongPlayed(&si.StatusInfo, songPlayedThresholdSeconds)
 
 		if played {
@@ -68,7 +68,7 @@ func checkSongChange(si *songStatusInfo, mpdc *MPDClient) error {
 			log.Println("Playcounts:", si.SongInfo["Title"], " playcount=", playcount)
 		}
 	}
-	si.StatusInfo = info
+	si.StatusInfo = *info
 	return nil
 }
 
@@ -77,7 +77,7 @@ func updateSongInfo(si *songStatusInfo, mpdc *MPDClient) error {
 	if err != nil {
 		return err
 	}
-	si.SongInfo = songInfo
+	si.SongInfo = *songInfo
 	return nil
 }
 
@@ -106,8 +106,8 @@ func RecordPlayCounts(mpdc *MPDClient) {
 	}
 
 	si := songStatusInfo{}
-	si.StatusInfo = statusInfo
-	si.SongInfo = songInfo
+	si.StatusInfo = *statusInfo
+	si.SongInfo = *songInfo
 
 	pollCh := time.Tick(tickMillis * time.Millisecond)
 	ignorePoll := si.StatusInfo["state"] != "play"

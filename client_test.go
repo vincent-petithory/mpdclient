@@ -5,7 +5,6 @@ import (
 	"time"
 	"fmt"
 	"sync"
-	"log"
 )
 
 const (
@@ -309,88 +308,11 @@ func TestNewMode(t *testing.T) {
 		mpdc.Close()
 	}()
 
-	isIdle := false
-	var m sync.Mutex
-    c := sync.NewCond(&m)
-
-	reqCh := make(chan uint)
-	resCh := make(chan *Info)
-	go func() {
-		defer func() {
-
-		}()
-		for {
-			log.Println("Entering idle mode")
-			id, err := mpdc.conn.Cmd("idle")
-			if err != nil {
-				panic(err)
-			}
-
-			log.Println("Idle mode ready1")
-			mpdc.conn.StartResponse(id)
-			log.Println("Idle mode ready2")
-
-			info := make(Info)
-
-			// Signal other goroutines that idle mode is ready
-			c.L.Lock()
-			c.Signal()
-			c.L.Unlock()
-			isIdle = true
-			err = fillInfoUntilOK(mpdc, &info)
-			isIdle = false
-			mpdc.conn.EndResponse(id)
-			if err != nil {
-				panic(err)
-			}
-
-			subsystem, ok := info["changed"]
-			if ok {
-				fmt.Println("Subsystem changed:", subsystem)
-			} else {
-				fmt.Println("Noidle triggered")
-				select {
-				case <-mpdc.quitCh:
-					return
-				default:
-					fmt.Println("we're here, waiting the request id")
-					reqId := <-reqCh
-					fmt.Println("got it", reqId)
-					mpdc.conn.StartResponse(reqId)
-					info := make(Info)
-					err = fillInfoUntilOK(mpdc, &info)
-					if err != nil {
-						t.Fatal(err)
-					}
-					mpdc.conn.EndResponse(reqId)
-					resCh <- &info
-				}
-			}
-		}
-	}()
-
 	for i := 0; i < 5; i++ {
 		fmt.Println("loop", i)
-		if !isIdle {
-			c.L.Lock()
-			c.Wait()
-			c.L.Unlock()
-		}
-		fmt.Println("sending noidle", i)
-		err = mpdc.noIdle()
+		info, err := mpdc.Status()
 		if err != nil {
 			t.Fatal(err)
-		}
-		id, err := mpdc.Cmd("status")
-		if err != nil {
-			t.Fatal(err)
-		}
-		fmt.Println("sending id", id)
-		reqCh <- id
-		fmt.Println("sent, waiting response", id)
-		info := <- resCh
-		if info == nil {
-			t.Fatalf("info is nil")
 		}
 
 		if songid, ok := (*info)["songid"]; !ok {
@@ -400,5 +322,16 @@ func TestNewMode(t *testing.T) {
 		}
 	}
 
+}
+
+func TestMpdResponseFailureRegexp(t *testing.T) {
+	tests := []string{
+		`ACK [50@1] {play} song doesn't exist: "10240"`,
+	}
+	for _, test := range tests {
+		if match := mpdErrorRegexp.FindStringSubmatch(test); match == nil {
+			t.Errorf("Regexp didn't match against %s", test)
+		}
+	}
 }
 

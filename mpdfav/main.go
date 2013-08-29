@@ -29,11 +29,11 @@ func main() {
 
 	if !*noPlaycounts {
 		startMpdService(mpdc, RecordPlayCounts, &wg)
-		log.Print("Started Playcounts service... ")
+		log.Println("Started Playcounts service... ")
 	}
 	if !*noRatings {
 		startMpdService(mpdc, ListenRatings, &wg)
-		log.Print("Started Ratings service... ")
+		log.Println("Started Ratings service... ")
 	}
 
 	wg.Wait()
