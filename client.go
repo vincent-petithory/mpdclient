@@ -38,6 +38,7 @@ func (me MPDError) Error() string {
 
 var responseRegexp = regexp.MustCompile(`(\w+): (.+)`)
 var mpdErrorRegexp = regexp.MustCompile(`ACK \[(\d+)@(\d+)\] {(\w+)} (.+)`)
+var mpdVersionRegexp = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)`)
 
 func (i *Info) Progress() (int, int) {
 	if t, ok := (*i)["time"]; ok {
@@ -76,12 +77,19 @@ func (i *Info) Fill(data []string) error {
 type MPDClient struct {
 	Host             string
 	Port             uint
+	ProtocolVersion  Version
 	conn             *textproto.Conn
 	idleConn         *textproto.Conn
 	subscriptionConn *textproto.Conn
 	idle             *idleState
 	uid              uint
 	log              *log.Logger
+}
+
+type Version struct {
+	Major uint
+	Minor uint
+	Revision uint
 }
 
 type idleState struct {
@@ -571,33 +579,42 @@ func CloseConn(conn *textproto.Conn) error {
 	return nil
 }
 
-func newConn(host string, port uint) (*textproto.Conn, error) {
+func newConn(host string, port uint) (*textproto.Conn, *Version, error) {
 	addr := fmt.Sprintf("%s:%d", host, port)
 	conn, err := textproto.Dial(network, addr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	line, err := conn.ReadLine()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if line[0:6] != "OK MPD" {
-		return nil, errors.New("MPD: not OK")
+		return nil, nil, errors.New("MPD: not OK")
 	}
-	return conn, nil
+	m := mpdVersionRegexp.FindStringSubmatch(line[6:])
+	if m == nil {
+		return conn, nil, errors.New("Unknown MPD protocol version")
+	}
+	mjr, _ := strconv.ParseUint(m[1], 0, 0)
+	mnr, _ := strconv.ParseUint(m[2], 0, 0)
+	rev, _ := strconv.ParseUint(m[3], 0, 0)
+	version := Version{uint(mjr), uint(mnr), uint(rev)}
+
+	return conn, &version, nil
 }
 
 func Connect(host string, port uint) (*MPDClient, error) {
-	conn, err := newConn(host, port)
+	conn, version, err := newConn(host, port)
 	if err != nil {
 		return nil, err
 	}
-	idleConn, err := newConn(host, port)
+	idleConn, _, err := newConn(host, port)
 	if err != nil {
 		return nil, err
 	}
-	subscriptionConn, err := newConn(host, port)
+	subscriptionConn, _, err := newConn(host, port)
 	if err != nil {
 		return nil, err
 	}
@@ -611,7 +628,7 @@ func Connect(host string, port uint) (*MPDClient, error) {
 	c := sync.NewCond(&m)
 	idleState := &idleState{c, false, make(chan bool), make(chan *request), make(chan *response), []*idleSubscription{}}
 
-	mpdc := &MPDClient{host, port, conn, idleConn, subscriptionConn, idleState, uid, mpdcLog}
+	mpdc := &MPDClient{host, port, *version, conn, idleConn, subscriptionConn, idleState, uid, mpdcLog}
 	uid++
 	go mpdc.idleloop()
 	go mpdc.subscriptionloop()

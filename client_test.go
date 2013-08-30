@@ -311,7 +311,6 @@ func TestSequence(t *testing.T) {
 			t.Fatalf("no songid")
 		}
 	}
-
 }
 
 func TestMpdResponseFailureRegexp(t *testing.T) {
@@ -321,6 +320,21 @@ func TestMpdResponseFailureRegexp(t *testing.T) {
 	for _, test := range tests {
 		if match := mpdErrorRegexp.FindStringSubmatch(test); match == nil {
 			t.Errorf("Regexp didn't match against %s", test)
+		}
+	}
+}
+
+func TestMpdVersionRegexp(t *testing.T) {
+	tests := []string{
+		`OK MPD 0.12.2`,
+	}
+	for _, test := range tests {
+		if match := mpdVersionRegexp.FindStringSubmatch(test); match == nil {
+			t.Errorf("Regexp didn't match against %s", test)
+		} else {
+			if match[1] != "0" || match[2] != "12" || match[3] != "2" {
+				t.Errorf("Unexpected version values")
+			}
 		}
 	}
 }
