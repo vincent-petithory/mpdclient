@@ -31,13 +31,33 @@ func TestStatus(t *testing.T) {
 	if info == nil {
 		t.Fatalf("Unexpected nil value")
 	}
-	fmt.Println(info)
+	if _, ok := (*info)["songid"]; !ok {
+		t.Fatalf("no song id found")
+	}
 }
 
-// TestUnexistingSticketGet tests that StickerGet
+func TestCurrentSong(t *testing.T) {
+	mpdc, err := Connect(mpdHost, mpdPort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mpdc.Close()
+	info, err := mpdc.CurrentSong()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info == nil {
+		t.Fatalf("Unexpected nil value")
+	}
+	if _, ok := (*info)["Title"]; !ok {
+		t.Fatalf("no title found")
+	}
+}
+
+// TestUnexistingStickerGet tests that StickerGet
 // returns an empty string and no error
 // when a sticker is not found
-func TestUnexistingSticketGet(t *testing.T) {
+func TestUnexistingStickerGet(t *testing.T) {
 	mpdc, err := Connect(mpdHost, mpdPort)
 	if err != nil {
 		t.Fatal(err)
@@ -56,23 +76,23 @@ func TestUnexistingSticketGet(t *testing.T) {
 	}
 }
 
-// TestExistingSticketGet tests that StickerGet
+// TestExistingStickerGet tests that StickerGet
 // returns a non-empty string and no error
 // when a sticker is found
-func TestExistingSticketGet(t *testing.T) {
+func TestExistingStickerGet(t *testing.T) {
 	mpdc, err := Connect(mpdHost, mpdPort)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer mpdc.Close()
-	existingSticketGet(t, mpdc)
-	existingSticketGet(t, mpdc)
+	existingStickerGet(t, mpdc)
+	existingStickerGet(t, mpdc)
 }
 
-func existingSticketGet(t *testing.T, mpdc *MPDClient) {
+func existingStickerGet(t *testing.T, mpdc *MPDClient) {
 	value, err := mpdc.StickerGet(
 		"song",
-		"RadioFlux/FREQUENCE3 - www.frequence3.fr - It's only HITS live from Paris France ! - French Webradio/Basto - Stormchaser.mp3",
+		"final fantasy/Final Fantasy IX/Final Fantasy IX119 - Fanfare.MP3",
 		"playcount",
 	)
 	if err != nil {
