@@ -116,15 +116,17 @@ func RecordPlayCounts(mpdc *MPDClient) {
 		select {
 		case <-pollCh:
 			if !ignorePoll {
+				log.Println("Polling status")
 				err = processStateUpdate(&si, mpdc)
 				if err != nil {
-					panic(err)
+					log.Println(err)
 				}
 			}
 		case <-mpdc.Idle("player"):
+			log.Println("Fetching status on response to 'idle'")
 			err := processStateUpdate(&si, mpdc)
 			if err != nil {
-				panic(err)
+				log.Println(err)
 			}
 
 			// Suspend poll goroutine if player is stopped or paused

@@ -78,23 +78,23 @@ func ListenRatings(mpdc *MPDClient) {
 	go func() {
 		for {
 			subsystem := <-mpdc.Idle("message", "player")
-			if err != nil {
-				log.Println(err)
-			} else {
-				switch subsystem {
-				case "message":
-					msgs, err := mpdc.ReadMessages()
-					if err != nil {
-						log.Println(err)
-					}
+			switch subsystem {
+			case "message":
+				log.Println(">>> message event")
+				msgs, err := mpdc.ReadMessages()
+				if err != nil {
+					log.Println(err)
+				} else {
 					for _, msg := range msgs {
 						msgsCh <- msg
 					}
-				case "player":
-					statusInfo, err := mpdc.Status()
-					if err != nil {
-						log.Println(err)
-					}
+				}
+			case "player":
+				log.Println(">>> player event")
+				statusInfo, err := mpdc.Status()
+				if err != nil {
+					log.Println(err)
+				} else {
 					playerCh <- *statusInfo
 				}
 			}
@@ -119,22 +119,19 @@ func ListenRatings(mpdc *MPDClient) {
 				}
 			}
 			if !clientExists {
+				songInfo, err := mpdc.CurrentSong()
 				if err == nil {
-					songInfo, err := mpdc.CurrentSong()
-					if err == nil {
-						if rating, err := rateSong(songInfo, channelMessage.Message, mpdc); err != nil {
-							log.Println(err)
-						} else {
-							clientsSentRating = append(clientsSentRating, thisClientId)
-							log.Println((*songInfo)["Title"], " rating=", rating)
-						}
-					} else {
+					if rating, err := rateSong(songInfo, channelMessage.Message, mpdc); err != nil {
 						log.Println(err)
+					} else {
+						clientsSentRating = append(clientsSentRating, thisClientId)
+						log.Println((*songInfo)["Title"], " rating=", rating)
 					}
 				} else {
 					log.Println(err)
 				}
-				mpdc.Close()
+			} else {
+				log.Println(fmt.Sprintf("Client %s already rated", thisClientId))
 			}
 		case statusInfo := <-playerCh:
 			if currentSongId != statusInfo["songid"] {
