@@ -65,7 +65,7 @@ func TestUnexistingStickerGet(t *testing.T) {
 	defer mpdc.Close()
 	value, err := mpdc.StickerGet(
 		"song",
-		"does-not-exist.mp3",
+		"tests/does-not-exist.ogg",
 		"playcount",
 	)
 	if err == nil {
@@ -90,10 +90,16 @@ func TestExistingStickerGet(t *testing.T) {
 }
 
 func existingStickerGet(t *testing.T, mpdc *MPDClient) {
+	err := mpdc.StickerSet(
+		"song",
+		"tests/song.ogg",
+		"test",
+		"1",
+	)
 	value, err := mpdc.StickerGet(
 		"song",
-		"final fantasy/Final Fantasy IX/Final Fantasy IX119 - Fanfare.MP3",
-		"playcount",
+		"tests/song.ogg",
+		"test",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -129,81 +135,55 @@ func TestSendReadMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer mpdc.Close()
-	const channel = "test-channel"
+	const channel = "whatever"
+	const msg = "heya"
 
+	done := make(chan struct{})
+	go func() {
+		subSub := mpdc.Idle("subscription")
+		var subsystem string
+
+		for s := 0; s < 2; s++ {
+			subsystem = <-subSub.Ch
+			if subsystem != "subscription" {
+				t.Fatalf("Expected idle event %s, got %s", "subscription", subsystem)
+			}
+		}
+		subSub.Close()
+		close(done)
+	}()
 	err = mpdc.Subscribe(channel)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	expectedMsgs := []ChannelMessage{
-		ChannelMessage{channel, "first message"},
-		ChannelMessage{channel, "second message"},
-	}
-	for _, channelMessage := range expectedMsgs {
-		err = mpdc.SendMessage(channelMessage.Channel, channelMessage.Message)
-		if err != nil {
-			t.Error(err)
-		}
-	}
-
-	msgs, err := mpdc.ReadMessages()
+	err = mpdc.SendMessage(channel, msg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(msgs) != len(expectedMsgs) {
-		t.Fatalf("Expected %d messages, got %d", len(expectedMsgs), len(msgs))
-	}
-	for i, channelMessage := range msgs {
-		if channelMessage != expectedMsgs[i] {
-			t.Errorf("%q != %q", channelMessage, expectedMsgs[i])
-		}
-	}
 
+	mesSub := mpdc.Idle("message")
+	<-mesSub.Ch
+	mesSub.Close()
+
+	messages, err := mpdc.ReadMessages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("Expected %d message, got %d", 1, len(messages))
+	}
+	channelMessage := messages[0]
+	if channelMessage.Channel != "whatever" {
+		t.Fatalf("Expected channel %s, got %s", channel, channelMessage.Channel)
+	}
+	if channelMessage.Message != "heya" {
+		t.Fatalf("Expected channel %s, got %s", channel, channelMessage.Message)
+	}
 	err = mpdc.Unsubscribe(channel)
 	if err != nil {
 		t.Fatal(err)
 	}
-}
 
-func TestSimpleIdleMode(t *testing.T) {
-	mpdc, err := Connect(mpdHost, mpdPort)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer mpdc.Close()
-
-	done := make(chan struct{})
-	go func() {
-		v := <-mpdc.Idle("subscription")
-		if v != "subscription" {
-			t.Fatalf("Expected idle event %s, got %s", "subscription", v)
-		}
-		fmt.Println("Got", v)
-		v = <-mpdc.Idle("message")
-		if v != "message" {
-			t.Fatalf("Expected idle event %s, got %s", "message", v)
-		}
-		fmt.Println("Got", v)
-		v = <-mpdc.Idle("subscription")
-		if v != "subscription" {
-			t.Fatalf("Expected idle event %s, got %s", "subscription", v)
-		}
-		fmt.Println("Got", v)
-		close(done)
-	}()
-	err = mpdc.Subscribe("whatever")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = mpdc.SendMessage("whatever", "heya")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = mpdc.Unsubscribe("whatever")
-	if err != nil {
-		t.Fatal(err)
-	}
 	fmt.Println("waiting")
 	<-done
 	fmt.Println("done")
@@ -219,8 +199,8 @@ func TestIdleModeSequence(t *testing.T) {
 	const channelName = "test-channel"
 
 	var idleTests = []idleTestCase{
-		{"Idle 1", []string{"subscription"},  []string{"subscription", "subscription"}},
-		{"Idle 2", []string{"subscription", "message"},  []string{"subscription", "message", "subscription"}},
+		{"Idle 1", []string{"subscription"},  []string{"subscription"}},
+		{"Idle 2", []string{"subscription", "message"},  []string{"subscription", "message"}},
 		{"Idle 3", []string{"message"},  []string{"message"}},
 	}
 
@@ -229,7 +209,9 @@ func TestIdleModeSequence(t *testing.T) {
 	for _, idleTest := range idleTests {
 		go func(idleTest idleTestCase) {
 			for _, expectedSubsystem := range idleTest.ExpectedSubsystemsNotifications {
-				subsystem := <-mpdc.Idle(idleTest.Subsystems...)
+				sub := mpdc.Idle(idleTest.Subsystems...)
+				subsystem := <-sub.Ch
+				sub.Close()
 				if subsystem != expectedSubsystem {
 					t.Errorf("%s: expected subsystem %s, got %s", idleTest.Name, expectedSubsystem, subsystem)
 				} else {
@@ -245,10 +227,6 @@ func TestIdleModeSequence(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = mpdc.SendMessage(channelName, "hello MPD")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = mpdc.Unsubscribe(channelName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +273,7 @@ func TestConcurrentCmds(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = mpdc.Unsubscribe("whatever")
+		err = mpdc.SendMessage("whatever", "hello MPD")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -305,7 +283,7 @@ func TestConcurrentCmds(t *testing.T) {
 		value, err := mpdc.StickerGet(
 		"song",
 		"does-not-exist.mp3",
-		"playcount",
+		"test",
 		)
 		if err == nil {
 			t.Fatal("Found an unexisting song")
@@ -319,7 +297,7 @@ func TestConcurrentCmds(t *testing.T) {
 	wg.Wait()
 }
 
-func TestNewMode(t *testing.T) {
+func TestSequence(t *testing.T) {
 	mpdc, err := Connect(mpdHost, mpdPort)
 	if err != nil {
 		t.Fatal(err)
@@ -329,7 +307,6 @@ func TestNewMode(t *testing.T) {
 	}()
 
 	for i := 0; i < 5; i++ {
-		fmt.Println("loop", i)
 		info, err := mpdc.Status()
 		if err != nil {
 			t.Fatal(err)
