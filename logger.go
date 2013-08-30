@@ -1,10 +1,10 @@
 package mpdfav
 
 import (
+	"fmt"
+	"io"
 	"log"
 	"os"
-	"io"
-	"fmt"
 )
 
 const logFilename = "mpdfav.log"

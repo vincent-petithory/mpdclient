@@ -3,12 +3,12 @@ package mpdfav
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/textproto"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
-	"log"
 )
 
 const (
@@ -26,10 +26,10 @@ type ChannelMessage struct {
 type Info map[string]string
 
 type MPDError struct {
-	Ack uint
+	Ack            uint
 	CommandListNum uint
 	CurrentCommand string
-	MessageText string
+	MessageText    string
 }
 
 func (me MPDError) Error() string {
@@ -74,30 +74,30 @@ func (i *Info) Fill(data []string) error {
 }
 
 type MPDClient struct {
-	Host string
-	Port uint
-	conn *textproto.Conn
-	idleConn *textproto.Conn
+	Host             string
+	Port             uint
+	conn             *textproto.Conn
+	idleConn         *textproto.Conn
 	subscriptionConn *textproto.Conn
-	idle *idleState
-	uid uint
-	log *log.Logger
+	idle             *idleState
+	uid              uint
+	log              *log.Logger
 }
 
 type idleState struct {
-	c *sync.Cond
-	isIdle bool
-	quitCh chan bool
-	reqCh chan *request
-	resCh chan *response
+	c             *sync.Cond
+	isIdle        bool
+	quitCh        chan bool
+	reqCh         chan *request
+	resCh         chan *response
 	subscriptions []*idleSubscription
 }
 
 type request uint
 
 type response struct {
-	Data []string
-	Err error
+	Data   []string
+	Err    error
 	MPDErr *MPDError
 }
 
@@ -110,8 +110,8 @@ func (is *idleState) MaybeWait() {
 }
 
 type idleSubscription struct {
-	Ch chan string
-	active bool
+	Ch         chan string
+	active     bool
 	subsystems []string
 }
 
@@ -347,134 +347,134 @@ func (c *MPDClient) sendSubscriptionsFor(subsystem string) {
 
 func (c *MPDClient) idleloop() {
 	defer func() {
-        if err := recover(); err != nil {
-            c.log.Println("Panic in idleloop:", err)
-        }
+		if err := recover(); err != nil {
+			c.log.Println("Panic in idleloop:", err)
+		}
 	}()
-        for {
-			c.log.Println("Entering idle mode")
-			id, err := c.idleConn.Cmd("idle")
-			if err != nil {
-				panic(err)
-			}
+	for {
+		c.log.Println("Entering idle mode")
+		id, err := c.idleConn.Cmd("idle")
+		if err != nil {
+			panic(err)
+		}
 
-			c.log.Println("Idle mode ready1")
-			c.idleConn.StartResponse(id)
-			c.log.Println("Idle mode ready2")
+		c.log.Println("Idle mode ready1")
+		c.idleConn.StartResponse(id)
+		c.log.Println("Idle mode ready2")
 
-			var subsystem *string
-			var idleErr error
-			for {
-				line, idleErr := c.idleConn.ReadLine()
-				if idleErr != nil {
-
-					break
-				}
-				if line == "OK" {
-					break
-				} else {
-					match := responseRegexp.FindStringSubmatch(line)
-					if match == nil {
-						break
-					}
-					key := match[1]
-					if key == "changed" {
-						l := match[2]
-						subsystem = &l
-					}
-				}
-			}
-
-			c.idleConn.EndResponse(id)
+		var subsystem *string
+		var idleErr error
+		for {
+			line, idleErr := c.idleConn.ReadLine()
 			if idleErr != nil {
-				panic(idleErr)
-			}
 
-			if subsystem != nil {
-				c.log.Println("subsystem", *subsystem, "changed")
-				go c.sendSubscriptionsFor(*subsystem)
+				break
+			}
+			if line == "OK" {
+				break
 			} else {
-				c.log.Println("Noidle triggered")
-				select {
-				case <-c.idle.quitCh:
-					return
-				default:
+				match := responseRegexp.FindStringSubmatch(line)
+				if match == nil {
+					break
+				}
+				key := match[1]
+				if key == "changed" {
+					l := match[2]
+					subsystem = &l
 				}
 			}
+		}
+
+		c.idleConn.EndResponse(id)
+		if idleErr != nil {
+			panic(idleErr)
+		}
+
+		if subsystem != nil {
+			c.log.Println("subsystem", *subsystem, "changed")
+			go c.sendSubscriptionsFor(*subsystem)
+		} else {
+			c.log.Println("Noidle triggered")
+			select {
+			case <-c.idle.quitCh:
+				return
+			default:
+			}
+		}
 	}
 }
 
 func (c *MPDClient) subscriptionloop() {
 	defer func() {
-        if err := recover(); err != nil {
-            c.log.Println("Panic in subscriptionloop:", err)
-        }
+		if err := recover(); err != nil {
+			c.log.Println("Panic in subscriptionloop:", err)
+		}
 	}()
-        for {
-			c.log.Println("Entering subscriptionloop")
-			id, err := c.subscriptionConn.Cmd("idle message")
-			if err != nil {
-				panic(err)
-			}
+	for {
+		c.log.Println("Entering subscriptionloop")
+		id, err := c.subscriptionConn.Cmd("idle message")
+		if err != nil {
+			panic(err)
+		}
 
-			c.log.Println("subscriptionloop ready1")
-			c.subscriptionConn.StartResponse(id)
-			c.log.Println("subscriptionloop ready2")
+		c.log.Println("subscriptionloop ready1")
+		c.subscriptionConn.StartResponse(id)
+		c.log.Println("subscriptionloop ready2")
 
-			// Signal other goroutines that idle mode is ready
-			c.idle.c.L.Lock()
-			c.idle.c.Signal()
-			c.idle.c.L.Unlock()
-			c.idle.isIdle = true
+		// Signal other goroutines that idle mode is ready
+		c.idle.c.L.Lock()
+		c.idle.c.Signal()
+		c.idle.c.L.Unlock()
+		c.idle.isIdle = true
 
-			var subsystem *string
-			var idleErr error
-			for {
-				line, idleErr := c.subscriptionConn.ReadLine()
-				if idleErr != nil {
-
-					break
-				}
-				if line == "OK" {
-					break
-				} else {
-					match := responseRegexp.FindStringSubmatch(line)
-					if match == nil {
-						break
-					}
-					key := match[1]
-					if key == "changed" {
-						l := match[2]
-						subsystem = &l
-					}
-				}
-			}
-
-			c.subscriptionConn.EndResponse(id)
-			c.idle.isIdle = false
+		var subsystem *string
+		var idleErr error
+		for {
+			line, idleErr := c.subscriptionConn.ReadLine()
 			if idleErr != nil {
-				panic(idleErr)
-			}
 
-			if subsystem != nil {
-				c.log.Println("subsystem", *subsystem, "changed")
-				go c.sendSubscriptionsFor(*subsystem)
+				break
+			}
+			if line == "OK" {
+				break
 			} else {
-				c.log.Println("Noidle triggered")
-				select {
-				case <-c.idle.quitCh:
-					return
-				default:
-					c.log.Println("waiting the request id")
-					req := <-c.idle.reqCh
-					reqId := uint(*(req))
-					c.log.Println("got request id", reqId)
-					c.subscriptionConn.StartResponse(reqId)
-					res := processConnData(c.subscriptionConn)
-					c.subscriptionConn.EndResponse(reqId)
-					c.idle.resCh <- &res
+				match := responseRegexp.FindStringSubmatch(line)
+				if match == nil {
+					break
+				}
+				key := match[1]
+				if key == "changed" {
+					l := match[2]
+					subsystem = &l
 				}
 			}
+		}
+
+		c.subscriptionConn.EndResponse(id)
+		c.idle.isIdle = false
+		if idleErr != nil {
+			panic(idleErr)
+		}
+
+		if subsystem != nil {
+			c.log.Println("subsystem", *subsystem, "changed")
+			go c.sendSubscriptionsFor(*subsystem)
+		} else {
+			c.log.Println("Noidle triggered")
+			select {
+			case <-c.idle.quitCh:
+				return
+			default:
+				c.log.Println("waiting the request id")
+				req := <-c.idle.reqCh
+				reqId := uint(*(req))
+				c.log.Println("got request id", reqId)
+				c.subscriptionConn.StartResponse(reqId)
+				res := processConnData(c.subscriptionConn)
+				c.subscriptionConn.EndResponse(reqId)
+				c.idle.resCh <- &res
+			}
+		}
 	}
 }
 
@@ -519,7 +519,7 @@ func (c *MPDClient) subscriptionCmd(cmd string) *response {
 	var req request = request(id)
 	c.idle.reqCh <- &req
 	c.log.Println(cmd, "> sent, waiting response", id)
-	res := <- c.idle.resCh
+	res := <-c.idle.resCh
 	return res
 }
 
@@ -528,7 +528,7 @@ func (c *MPDClient) Close() error {
 	c.log.Println("sending quit command")
 	c.idle.MaybeWait()
 	go func() {
-		c.idle.quitCh<-true
+		c.idle.quitCh <- true
 	}()
 
 	id, err := c.subscriptionConn.Cmd("noidle")
@@ -541,7 +541,7 @@ func (c *MPDClient) Close() error {
 
 	c.log.Println("sending quit command")
 	go func() {
-		c.idle.quitCh<-true
+		c.idle.quitCh <- true
 	}()
 
 	id, err = c.idleConn.Cmd("noidle")
@@ -607,8 +607,8 @@ func Connect(host string, port uint) (*MPDClient, error) {
 		return nil, err
 	}
 
-		var m sync.Mutex
-    c := sync.NewCond(&m)
+	var m sync.Mutex
+	c := sync.NewCond(&m)
 	idleState := &idleState{c, false, make(chan bool), make(chan *request), make(chan *response), []*idleSubscription{}}
 
 	mpdc := &MPDClient{host, port, conn, idleConn, subscriptionConn, idleState, uid, mpdcLog}

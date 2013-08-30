@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	ratingSticker = "rating"
+	ratingSticker  = "rating"
 	RatingsChannel = "ratings"
 )
 
@@ -76,8 +76,9 @@ func ListenRatings(mpdc *MPDClient) {
 	playerCh := make(chan Info)
 
 	go func() {
+		idleSub := mpdc.Idle("message", "player")
 		for {
-			subsystem := <-mpdc.Idle("message", "player")
+			subsystem := <-idleSub.Ch
 			switch subsystem {
 			case "message":
 				log.Println(">>> message event")
@@ -125,7 +126,7 @@ func ListenRatings(mpdc *MPDClient) {
 						log.Println(err)
 					} else {
 						clientsSentRating = append(clientsSentRating, thisClientId)
-						log.Println((*songInfo)["Title"], " rating=", rating)
+						log.Println(fmt.Sprintf("Ratings: %s rating=%d", (*songInfo)["Title"], rating))
 					}
 				} else {
 					log.Println(err)

@@ -1,6 +1,7 @@
 package mpdfav
 
 import (
+	"fmt"
 	"log"
 	"strconv"
 	"time"
@@ -65,7 +66,7 @@ func checkSongChange(si *songStatusInfo, mpdc *MPDClient) error {
 			if err != nil {
 				return err
 			}
-			log.Println("Playcounts:", si.SongInfo["Title"], " playcount=", playcount)
+			log.Println(fmt.Sprintf("Playcounts: %s playcount=%d", si.SongInfo["Title"], playcount))
 		}
 	}
 	si.StatusInfo = *info
@@ -109,6 +110,7 @@ func RecordPlayCounts(mpdc *MPDClient) {
 	si.StatusInfo = *statusInfo
 	si.SongInfo = *songInfo
 
+	idleSub := mpdc.Idle("player")
 	pollCh := time.Tick(tickMillis * time.Millisecond)
 	ignorePoll := si.StatusInfo["state"] != "play"
 
@@ -122,7 +124,7 @@ func RecordPlayCounts(mpdc *MPDClient) {
 					log.Println(err)
 				}
 			}
-		case <-mpdc.Idle("player"):
+		case <-idleSub.Ch:
 			log.Println("Fetching status on response to 'idle'")
 			err := processStateUpdate(&si, mpdc)
 			if err != nil {

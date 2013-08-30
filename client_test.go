@@ -1,10 +1,9 @@
 package mpdfav
 
 import (
+	"sync"
 	"testing"
 	"time"
-	"fmt"
-	"sync"
 )
 
 const (
@@ -13,8 +12,8 @@ const (
 )
 
 type idleTestCase struct {
-	Name string
-	Subsystems []string
+	Name                            string
+	Subsystems                      []string
 	ExpectedSubsystemsNotifications []string
 }
 
@@ -184,9 +183,7 @@ func TestSendReadMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmt.Println("waiting")
 	<-done
-	fmt.Println("done")
 }
 
 func TestIdleModeSequence(t *testing.T) {
@@ -199,9 +196,9 @@ func TestIdleModeSequence(t *testing.T) {
 	const channelName = "test-channel"
 
 	var idleTests = []idleTestCase{
-		{"Idle 1", []string{"subscription"},  []string{"subscription"}},
-		{"Idle 2", []string{"subscription", "message"},  []string{"subscription", "message"}},
-		{"Idle 3", []string{"message"},  []string{"message"}},
+		{"Idle 1", []string{"subscription"}, []string{"subscription"}},
+		{"Idle 2", []string{"subscription", "message"}, []string{"subscription", "message"}},
+		{"Idle 3", []string{"message"}, []string{"message"}},
 	}
 
 	idleTestsCompletions := make(chan idleTestCase)
@@ -214,8 +211,6 @@ func TestIdleModeSequence(t *testing.T) {
 				sub.Close()
 				if subsystem != expectedSubsystem {
 					t.Errorf("%s: expected subsystem %s, got %s", idleTest.Name, expectedSubsystem, subsystem)
-				} else {
-					fmt.Println(idleTest.Name, " got", subsystem)
 				}
 			}
 			idleTestsCompletions <- idleTest
@@ -231,7 +226,7 @@ func TestIdleModeSequence(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	timeout := time.After(2*time.Second)
+	timeout := time.After(2 * time.Second)
 	n := len(idleTests)
 	for n > 0 {
 		if n == 0 {
@@ -242,7 +237,7 @@ func TestIdleModeSequence(t *testing.T) {
 			n--
 		case <-timeout:
 			if n != 0 {
-				t.Fatalf("Not all idle events were received. Expected %d, got %d", len(idleTests), len(idleTests) - n)
+				t.Fatalf("Not all idle events were received. Expected %d, got %d", len(idleTests), len(idleTests)-n)
 			}
 
 		}
@@ -281,9 +276,9 @@ func TestConcurrentCmds(t *testing.T) {
 	}()
 	go func() {
 		value, err := mpdc.StickerGet(
-		"song",
-		"does-not-exist.mp3",
-		"test",
+			"song",
+			"does-not-exist.mp3",
+			"test",
 		)
 		if err == nil {
 			t.Fatal("Found an unexisting song")
@@ -312,10 +307,8 @@ func TestSequence(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if songid, ok := (*info)["songid"]; !ok {
+		if _, ok := (*info)["songid"]; !ok {
 			t.Fatalf("no songid")
-		} else {
-			fmt.Println("song id:", songid)
 		}
 	}
 
@@ -331,4 +324,3 @@ func TestMpdResponseFailureRegexp(t *testing.T) {
 		}
 	}
 }
-
