@@ -353,7 +353,7 @@ func (c *MPDClient) sendSubscriptionsFor(subsystem string) {
 	}
 }
 
-func (c *MPDClient) idleloop() {
+func (c *MPDClient) idleLoop() {
 	defer func() {
 		if err := recover(); err != nil {
 			c.log.Println("Panic in idleloop:", err)
@@ -412,7 +412,7 @@ func (c *MPDClient) idleloop() {
 	}
 }
 
-func (c *MPDClient) subscriptionloop() {
+func (c *MPDClient) subscriptionLoop() {
 	defer func() {
 		if err := recover(); err != nil {
 			c.log.Println("Panic in subscriptionloop:", err)
@@ -630,7 +630,7 @@ func Connect(host string, port uint) (*MPDClient, error) {
 
 	mpdc := &MPDClient{host, port, *version, conn, idleConn, subscriptionConn, idleState, uid, mpdcLog}
 	uid++
-	go mpdc.idleloop()
-	go mpdc.subscriptionloop()
+	go mpdc.idleLoop()
+	go mpdc.subscriptionLoop()
 	return mpdc, nil
 }
