@@ -184,7 +184,7 @@ func (c *MPDClient) subscriptionLoop() {
 
 		if subsystem != nil {
 			c.log.Println("subsystem", *subsystem, "changed")
-			go c.sendSubscriptionsFor(*subsystem)
+			go c.sendIdleChange(*subsystem)
 		} else {
 			c.log.Println("Noidle triggered")
 			select {

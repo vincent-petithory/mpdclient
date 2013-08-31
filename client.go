@@ -66,6 +66,7 @@ type MPDClient struct {
 	idleConn         *textproto.Conn
 	subscriptionConn *textproto.Conn
 	idle             *idleState
+	idleListeners []*idleListener
 	uid              uint
 	log              *log.Logger
 }
@@ -234,9 +235,9 @@ func Connect(host string, port uint) (*MPDClient, error) {
 
 	var m sync.Mutex
 	c := sync.NewCond(&m)
-	idleState := &idleState{c, false, make(chan bool), make(chan *request), make(chan *response), []*idleSubscription{}}
+	idleState := &idleState{c, false, make(chan bool), make(chan *request), make(chan *response)}
 
-	mpdc := &MPDClient{host, port, *version, conn, idleConn, subscriptionConn, idleState, uid, mpdcLog}
+	mpdc := &MPDClient{host, port, *version, conn, idleConn, subscriptionConn, idleState, []*idleListener{}, uid, mpdcLog}
 	uid++
 	go mpdc.idleLoop()
 	go mpdc.subscriptionLoop()

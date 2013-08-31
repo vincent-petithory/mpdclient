@@ -10,7 +10,6 @@ type idleState struct {
 	quitCh        chan bool
 	reqCh         chan *request
 	resCh         chan *response
-	subscriptions []*idleSubscription
 }
 
 func (is *idleState) MaybeWait() {
@@ -21,33 +20,33 @@ func (is *idleState) MaybeWait() {
 	}
 }
 
-type idleSubscription struct {
+type idleListener struct {
 	Ch         chan string
 	active     bool
 	subsystems []string
 }
 
-func (is *idleSubscription) Close() {
+func (is *idleListener) Close() {
 	close(is.Ch)
 	is.active = false
 }
 
-func (c *MPDClient) Idle(subsystems ...string) *idleSubscription {
-	is := idleSubscription{make(chan string), true, subsystems}
-	c.idle.subscriptions = append(c.idle.subscriptions, &is)
+func (c *MPDClient) Idle(subsystems ...string) *idleListener {
+	is := idleListener{make(chan string), true, subsystems}
+	c.idleListeners = append(c.idleListeners, &is)
 	return &is
 }
 
-func (c *MPDClient) sendSubscriptionsFor(subsystem string) {
-	for i, subscription := range c.idle.subscriptions {
-		if subscription.active == true {
-			if len(subscription.subsystems) == 0 {
-				subscription.Ch <- subsystem
+func (c *MPDClient) sendIdleChange(subsystem string) {
+	for i, idleListener := range c.idleListeners {
+		if idleListener.active == true {
+			if len(idleListener.subsystems) == 0 {
+				idleListener.Ch <- subsystem
 			} else {
-				for _, wantedSubsystem := range subscription.subsystems {
+				for _, wantedSubsystem := range idleListener.subsystems {
 					if wantedSubsystem == subsystem {
 						c.log.Println("sending", subsystem, "to", i)
-						subscription.Ch <- subsystem
+						idleListener.Ch <- subsystem
 					}
 				}
 			}
@@ -102,7 +101,7 @@ func (c *MPDClient) idleLoop() {
 
 		if subsystem != nil {
 			c.log.Println("subsystem", *subsystem, "changed")
-			go c.sendSubscriptionsFor(*subsystem)
+			go c.sendIdleChange(*subsystem)
 		} else {
 			c.log.Println("Noidle triggered")
 			select {
