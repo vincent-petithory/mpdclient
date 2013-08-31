@@ -1,4 +1,4 @@
-package mpdfav
+package mpdclient
 
 import (
 	"errors"

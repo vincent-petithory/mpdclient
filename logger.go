@@ -1,4 +1,4 @@
-package mpdfav
+package mpdclient
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-const logFilename = "mpdfav.log"
+const logFilename = "mpdclient.log"
 
 func newMPDCLogger(uid uint, stderr bool) (*log.Logger, error) {
 	var filename string

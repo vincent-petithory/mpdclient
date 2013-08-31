@@ -1,4 +1,4 @@
-package mpdfav
+package mpdclient
 
 import (
 	"errors"
@@ -66,7 +66,7 @@ type MPDClient struct {
 	idleConn         *textproto.Conn
 	subscriptionConn *textproto.Conn
 	idle             *idleState
-	idleListeners []*idleListener
+	idleListeners    []*idleListener
 	uid              uint
 	log              *log.Logger
 }

@@ -1,15 +1,15 @@
-package mpdfav
+package mpdclient
 
 import (
 	"sync"
 )
 
 type idleState struct {
-	c             *sync.Cond
-	isIdle        bool
-	quitCh        chan bool
-	reqCh         chan *request
-	resCh         chan *response
+	c      *sync.Cond
+	isIdle bool
+	quitCh chan bool
+	reqCh  chan *request
+	resCh  chan *response
 }
 
 func (is *idleState) MaybeWait() {

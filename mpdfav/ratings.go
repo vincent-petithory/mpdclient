@@ -1,8 +1,9 @@
-package mpdfav
+package main
 
 import (
 	"errors"
 	"fmt"
+	. "github.com/vincent-petithory/mpdclient"
 	"log"
 	"strconv"
 )
