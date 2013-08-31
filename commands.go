@@ -1,9 +1,9 @@
 package mpdfav
 
 import (
+	"errors"
 	"fmt"
 	"strings"
-	"errors"
 )
 
 func (c *MPDClient) CurrentSong() (*Info, error) {

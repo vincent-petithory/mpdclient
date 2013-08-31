@@ -18,22 +18,11 @@ const (
 
 var uid uint = 1
 
-type Info map[string]string
-
-type MPDError struct {
-	Ack            uint
-	CommandListNum uint
-	CurrentCommand string
-	MessageText    string
-}
-
-func (me MPDError) Error() string {
-	return fmt.Sprintf("%d@%d %s: %s", me.Ack, me.CommandListNum, me.CurrentCommand, me.MessageText)
-}
-
 var responseRegexp = regexp.MustCompile(`(\w+): (.+)`)
 var mpdErrorRegexp = regexp.MustCompile(`ACK \[(\d+)@(\d+)\] {(\w+)} (.+)`)
 var mpdVersionRegexp = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)`)
+
+type Info map[string]string
 
 func (i *Info) Progress() (int, int) {
 	if t, ok := (*i)["time"]; ok {
@@ -93,6 +82,17 @@ type response struct {
 	Data   []string
 	Err    error
 	MPDErr *MPDError
+}
+
+type MPDError struct {
+	Ack            uint
+	CommandListNum uint
+	CurrentCommand string
+	MessageText    string
+}
+
+func (me MPDError) Error() string {
+	return fmt.Sprintf("%d@%d %s: %s", me.Ack, me.CommandListNum, me.CurrentCommand, me.MessageText)
 }
 
 func processConnData(conn *textproto.Conn) response {

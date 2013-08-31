@@ -1,8 +1,8 @@
 package mpdfav
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 )
 
 type ChannelMessage struct {
