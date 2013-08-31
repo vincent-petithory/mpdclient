@@ -87,8 +87,8 @@ type MPDClient struct {
 }
 
 type Version struct {
-	Major uint
-	Minor uint
+	Major    uint
+	Minor    uint
 	Revision uint
 }
 
@@ -593,7 +593,7 @@ func newConn(host string, port uint) (*textproto.Conn, *Version, error) {
 	if line[0:6] != "OK MPD" {
 		return nil, nil, errors.New("MPD: not OK")
 	}
-	m := mpdVersionRegexp.FindStringSubmatch(line[6:])
+	m := mpdVersionRegexp.FindStringSubmatch(line)
 	if m == nil {
 		return conn, nil, errors.New("Unknown MPD protocol version")
 	}

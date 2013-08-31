@@ -1,6 +1,9 @@
 package mpdfav
 
 import (
+	"errors"
+	"fmt"
+	"regexp"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +18,28 @@ type idleTestCase struct {
 	Name                            string
 	Subsystems                      []string
 	ExpectedSubsystemsNotifications []string
+}
+
+type regexpTestCase struct {
+	Input          string
+	ExpectedGroups []string
+}
+
+func (test *regexpTestCase) Validate(regexp *regexp.Regexp) error {
+	if match := regexp.FindStringSubmatch(test.Input); match == nil {
+		return errors.New(fmt.Sprintf("Regexp didn't match against %s", test.Input))
+	} else {
+		groups := match[1:]
+		if len(groups) == len(test.ExpectedGroups) {
+			for i, g := range groups {
+				if g != test.ExpectedGroups[i] {
+					break
+				}
+			}
+			return nil
+		}
+		return errors.New(fmt.Sprintf("Expected %q groups, got %q", test.ExpectedGroups, match[1:]))
+	}
 }
 
 func TestStatus(t *testing.T) {
@@ -314,27 +339,29 @@ func TestSequence(t *testing.T) {
 }
 
 func TestMpdResponseFailureRegexp(t *testing.T) {
-	tests := []string{
-		`ACK [50@1] {play} song doesn't exist: "10240"`,
+	tests := []regexpTestCase{
+		regexpTestCase{
+			`ACK [50@1] {play} song doesn't exist: "10240"`,
+			[]string{"50", "1", "play", `song doesn't exist: "10240"`},
+		},
 	}
 	for _, test := range tests {
-		if match := mpdErrorRegexp.FindStringSubmatch(test); match == nil {
-			t.Errorf("Regexp didn't match against %s", test)
+		if err := test.Validate(mpdErrorRegexp); err != nil {
+			t.Fatal(err)
 		}
 	}
 }
 
 func TestMpdVersionRegexp(t *testing.T) {
-	tests := []string{
-		`OK MPD 0.12.2`,
+	tests := []regexpTestCase{
+		regexpTestCase{
+			`OK MPD 0.12.2`,
+			[]string{"0", "12", "2"},
+		},
 	}
 	for _, test := range tests {
-		if match := mpdVersionRegexp.FindStringSubmatch(test); match == nil {
-			t.Errorf("Regexp didn't match against %s", test)
-		} else {
-			if match[1] != "0" || match[2] != "12" || match[3] != "2" {
-				t.Errorf("Unexpected version values")
-			}
+		if err := test.Validate(mpdVersionRegexp); err != nil {
+			t.Fatal(err)
 		}
 	}
 }
