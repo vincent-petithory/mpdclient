@@ -75,8 +75,8 @@ func (c *MPDClient) ReadMessages() ([]ChannelMessage, error) {
 	if res.MPDErr != nil {
 		return nil, res.MPDErr
 	}
-	msgs := make([]ChannelMessage, 0)
 	n := len(res.Data)
+	msgs := make([]ChannelMessage, n/2)
 	for i := 0; i < n; i += 2 {
 		matchC := responseRegexp.FindStringSubmatch(res.Data[i])
 		matchM := responseRegexp.FindStringSubmatch(res.Data[i+1])
@@ -86,7 +86,9 @@ func (c *MPDClient) ReadMessages() ([]ChannelMessage, error) {
 		if matchM == nil {
 			return nil, errors.New(fmt.Sprintf("Invalid input: %s", res.Data[i+1]))
 		}
-		msgs = append(msgs, ChannelMessage{matchC[2], matchM[2]})
+		var channelMessage *ChannelMessage = &msgs[i/2]
+		channelMessage.Channel = matchC[2]
+		channelMessage.Message = matchM[2]
 	}
 	return msgs, nil
 }
