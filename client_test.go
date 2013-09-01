@@ -322,9 +322,7 @@ func TestSequence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() {
-		mpdc.Close()
-	}()
+	defer mpdc.Close()
 
 	for i := 0; i < 5; i++ {
 		info, err := mpdc.Status()
@@ -363,5 +361,147 @@ func TestMpdVersionRegexp(t *testing.T) {
 		if err := test.Validate(mpdVersionRegexp); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestListPlaylists(t *testing.T) {
+	mpdc, err := Connect(mpdHost, mpdPort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mpdc.Close()
+
+	playlistName := fmt.Sprintf("test-%d", time.Now().Unix())
+
+	err = mpdc.Save(playlistName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		err := mpdc.Rm(playlistName)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	songs, err := mpdc.ListPlaylist(playlistName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(songs) > 0 {
+		err = mpdc.PlaylistClear(playlistName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		songs, err = mpdc.ListPlaylist(playlistName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(songs) > 0 {
+			t.Fatalf("Playlist %s should be empty", playlistName)
+		}
+	}
+
+	playlistsInfo, err := mpdc.ListPlaylists()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(playlistsInfo) == 0 {
+		t.Fatalf("No stored playlists")
+	}
+	var testPlaylistInfo *PlaylistInfo
+	for _, playlistInfo := range playlistsInfo {
+		if playlistInfo.Name == playlistName {
+			testPlaylistInfo = &playlistInfo
+			break
+		}
+	}
+	if testPlaylistInfo == nil {
+		t.Fatalf("Playlist \"%s\" wasn't found", playlistName)
+	}
+	if testPlaylistInfo.LastModified == nil {
+		t.Fatalf("Playlist \"%s\" last modified time is nil", playlistName)
+	}
+}
+
+func TestPlaylistClearUnexistingPlaylist(t *testing.T) {
+	mpdc, err := Connect(mpdHost, mpdPort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mpdc.Close()
+
+	const playlistName = "playlist-doesnt-exist"
+
+	err = mpdc.PlaylistClear(playlistName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = mpdc.Rm(playlistName)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPlaylistAdd(t *testing.T) {
+	mpdc, err := Connect(mpdHost, mpdPort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mpdc.Close()
+
+	playlistName := fmt.Sprintf("test-%d", time.Now().Unix())
+	const songUri = "tests/song.ogg"
+	defer func() {
+		err := mpdc.Rm(playlistName)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	err = mpdc.PlaylistClear(playlistName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = mpdc.PlaylistAdd(
+		playlistName,
+		songUri,
+	)
+
+	playlistsInfo, err := mpdc.ListPlaylists()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(playlistsInfo) == 0 {
+		t.Fatalf("No stored playlists")
+	}
+	var testPlaylistInfo *PlaylistInfo
+	for _, playlistInfo := range playlistsInfo {
+		if playlistInfo.Name == playlistName {
+			testPlaylistInfo = &playlistInfo
+			break
+		}
+	}
+	if testPlaylistInfo == nil {
+		t.Fatalf("Playlist \"%s\" wasn't found", playlistName)
+	}
+
+	songs, err := mpdc.ListPlaylist(playlistName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	songFound := false
+	for _, song := range songs {
+		if song == songUri {
+			songFound = true
+			break
+		}
+	}
+	if !songFound {
+		t.Fatalf("Song \"%s\" wasn't found in playlist", songUri)
 	}
 }
