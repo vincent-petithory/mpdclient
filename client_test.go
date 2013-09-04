@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"sort"
 )
 
 const (
@@ -504,4 +505,32 @@ func TestPlaylistAdd(t *testing.T) {
 	if !songFound {
 		t.Fatalf("Song \"%s\" wasn't found in playlist", songUri)
 	}
+}
+
+func TestStickerFind(t *testing.T) {
+	mpdc, err := Connect(mpdHost, mpdPort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mpdc.Close()
+
+	songStickers, err := mpdc.StickerFind(StickerSongType, "/", "rating")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(songStickers) == 0 {
+		t.Fatalf("No rating sticker found")
+	}
+	songSticker := songStickers[0]
+	if len(songSticker.Uri) == 0 {
+		t.Fatalf("Empty 'Uri' field")
+	}
+	if len(songSticker.Sticker) == 0 {
+		t.Fatalf("Empty 'Sticker' field")
+	}
+	if len(songSticker.Value) == 0 {
+		t.Fatalf("Empty 'Value' field")
+	}
+	// try a sort, just to check the interfaces are satisfied
+	sort.Sort(sort.Reverse(songStickers))
 }
