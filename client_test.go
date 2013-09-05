@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"sync"
 	"testing"
 	"time"
-	"sort"
 )
 
 const (

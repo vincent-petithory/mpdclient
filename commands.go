@@ -3,8 +3,8 @@ package mpdclient
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 const StickerSongType = "song"
@@ -17,7 +17,7 @@ type SongSticker struct {
 
 type SongStickerList []SongSticker
 
-func (p SongStickerList) Len() int           { return len(p) }
+func (p SongStickerList) Len() int { return len(p) }
 func (p SongStickerList) Less(i, j int) bool {
 	if p[i].Name != p[j].Name {
 		return false
