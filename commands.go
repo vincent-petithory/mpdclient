@@ -160,3 +160,14 @@ func (c *MPDClient) StickerFind(stype, uri, stickerName string) (SongStickerList
 
 	return songStickers, nil
 }
+
+func (c *MPDClient) Ping() error {
+	res := c.Cmd("ping")
+	if res.Err != nil {
+		return res.Err
+	}
+	if res.MPDErr != nil {
+		return res.MPDErr
+	}
+	return nil
+}

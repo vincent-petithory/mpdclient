@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -65,6 +66,7 @@ type MPDClient struct {
 	conn             *textproto.Conn
 	idleConn         *textproto.Conn
 	subscriptionConn *textproto.Conn
+	pingLoopCh       chan bool
 	idle             *idleState
 	idleListeners    []*idleListener
 	uid              uint
@@ -94,6 +96,23 @@ type MPDError struct {
 
 func (me MPDError) Error() string {
 	return fmt.Sprintf("%d@%d %s: %s", me.Ack, me.CommandListNum, me.CurrentCommand, me.MessageText)
+}
+
+func (c *MPDClient) pingLoop() {
+	for {
+		select {
+		case <-c.pingLoopCh:
+			return
+		case <-time.After(15 * time.Second):
+			time.Sleep(15 * time.Second)
+			err := c.Ping()
+			if err != nil {
+				c.log.Println(err)
+			} else {
+				c.log.Println("PING OK")
+			}
+		}
+	}
 }
 
 func processConnData(conn *textproto.Conn) response {
@@ -169,6 +188,8 @@ func (c *MPDClient) Close() error {
 	c.idleConn.EndResponse(id)
 	CloseConn(c.idleConn)
 
+	// Stop ping loop
+	close(c.pingLoopCh)
 	// Close connections properly
 	CloseConn(c.conn)
 	return nil
@@ -237,8 +258,9 @@ func Connect(host string, port uint) (*MPDClient, error) {
 	c := sync.NewCond(&m)
 	idleState := &idleState{c, false, make(chan bool), make(chan *request), make(chan *response)}
 
-	mpdc := &MPDClient{host, port, *version, conn, idleConn, subscriptionConn, idleState, []*idleListener{}, uid, mpdcLog}
+	mpdc := &MPDClient{host, port, *version, conn, idleConn, subscriptionConn, make(chan bool), idleState, []*idleListener{}, uid, mpdcLog}
 	uid++
+	go mpdc.pingLoop()
 	go mpdc.idleLoop()
 	go mpdc.subscriptionLoop()
 	return mpdc, nil
