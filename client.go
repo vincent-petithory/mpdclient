@@ -13,6 +13,7 @@ import (
 )
 
 const network = "tcp"
+const Debug = false
 
 var uid uint = 1
 
@@ -246,7 +247,7 @@ func Connect(host string, port uint) (*MPDClient, error) {
 		return nil, err
 	}
 
-	mpdcLog, err := newMPDCLogger(uid, true)
+	mpdcLog, err := newMPDCLogger(uid, Debug)
 	if err != nil {
 		return nil, err
 	}
