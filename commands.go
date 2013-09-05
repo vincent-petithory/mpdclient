@@ -7,9 +7,11 @@ import (
 	"strconv"
 )
 
+const StickerSongType = "song"
+
 type SongSticker struct {
-	Uri string
-	Sticker string
+	Uri   string
+	Name  string
 	Value string
 }
 
@@ -17,7 +19,7 @@ type SongStickerList []SongSticker
 
 func (p SongStickerList) Len() int           { return len(p) }
 func (p SongStickerList) Less(i, j int) bool {
-	if p[i].Sticker != p[j].Sticker {
+	if p[i].Name != p[j].Name {
 		return false
 	}
 	piVal, erri := strconv.Atoi(p[i].Value)
@@ -153,7 +155,7 @@ func (c *MPDClient) StickerFind(stype, uri, stickerName string) (SongStickerList
 		}
 		var songSticker SongSticker
 		songSticker.Uri = matchFile[2]
-		songSticker.Sticker = pair[:fieldSepIndex]
+		songSticker.Name = pair[:fieldSepIndex]
 		songSticker.Value = pair[fieldSepIndex+1:]
 		songStickers[i/2] = songSticker
 	}

@@ -12,10 +12,7 @@ import (
 	"time"
 )
 
-const (
-	network         = "tcp"
-	StickerSongType = "song"
-)
+const network = "tcp"
 
 var uid uint = 1
 
