@@ -57,7 +57,7 @@ func (c *MPDClient) sendIdleChange(subsystem string) {
 func (c *MPDClient) idleLoop() {
 	defer func() {
 		if err := recover(); err != nil {
-			c.log.Println("Panic in idleloop:", err)
+			c.log.Panicf("Panic in idleloop: %s\n", err)
 		}
 	}()
 	for {

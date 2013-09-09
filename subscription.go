@@ -135,7 +135,7 @@ func (c *MPDClient) SendMessage(channel, text string) error {
 func (c *MPDClient) subscriptionLoop() {
 	defer func() {
 		if err := recover(); err != nil {
-			c.log.Println("Panic in subscriptionloop:", err)
+			c.log.Panicf("Panic in subscriptionloop: %s\n", err)
 		}
 	}()
 	for {
@@ -160,7 +160,6 @@ func (c *MPDClient) subscriptionLoop() {
 		for {
 			line, idleErr := c.subscriptionConn.ReadLine()
 			if idleErr != nil {
-
 				break
 			}
 			if line == "OK" {
