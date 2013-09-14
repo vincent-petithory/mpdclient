@@ -207,7 +207,7 @@ func CloseConn(conn *textproto.Conn) error {
 	return nil
 }
 
-func newConn(host string, port uint) (*textproto.Conn, *Version, error) {
+func newConn(host string, port uint, password string) (*textproto.Conn, *Version, error) {
 	addr := fmt.Sprintf("%s:%d", host, port)
 	conn, err := textproto.Dial(network, addr)
 	if err != nil {
@@ -230,19 +230,34 @@ func newConn(host string, port uint) (*textproto.Conn, *Version, error) {
 	rev, _ := strconv.ParseUint(m[3], 0, 0)
 	version := Version{uint(mjr), uint(mnr), uint(rev)}
 
+	if password != "" {
+		if err == nil && password != "" {
+			id, err := conn.Cmd("password %s", password)
+			conn.StartResponse(id)
+			defer conn.EndResponse(id)
+			line, err := conn.ReadLine()
+			if err != nil {
+				return nil, nil, err
+			}
+			if line != "OK" {
+				return nil, nil, errors.New(line)
+			}
+		}
+	}
+
 	return conn, &version, nil
 }
 
-func Connect(host string, port uint) (*MPDClient, error) {
-	conn, version, err := newConn(host, port)
+func newMPDClient(host string, port uint, password string) (*MPDClient, error) {
+	conn, version, err := newConn(host, port, password)
 	if err != nil {
 		return nil, err
 	}
-	idleConn, _, err := newConn(host, port)
+	idleConn, _, err := newConn(host, port, password)
 	if err != nil {
 		return nil, err
 	}
-	subscriptionConn, _, err := newConn(host, port)
+	subscriptionConn, _, err := newConn(host, port, password)
 	if err != nil {
 		return nil, err
 	}
@@ -262,4 +277,12 @@ func Connect(host string, port uint) (*MPDClient, error) {
 	go mpdc.idleLoop()
 	go mpdc.subscriptionLoop()
 	return mpdc, nil
+}
+
+func Connect(host string, port uint) (*MPDClient, error) {
+	return newMPDClient(host, port, "")
+}
+
+func ConnectAuth(host string, port uint, password string) (*MPDClient, error) {
+	return newMPDClient(host, port, password)
 }
