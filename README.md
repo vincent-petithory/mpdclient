@@ -66,13 +66,13 @@ Listen forever to all `player` and `mixer` events (player pause/stop/start/seek 
 
 Subscribe to a channel and write all incoming messages to stdout:
 
-	err := mpdc.Subscribe("mychannel")
-	if err != nil {
-		panic(err)
-	}
+    err := mpdc.Subscribe("mychannel")
+    if err != nil {
+        panic(err)
+    }
 
-	mesEvents := mpdc.Idle("message")
-	for {
+    mesEvents := mpdc.Idle("message")
+    for {
         <-mesEvents.Ch
         channelMessages, err := mpdc.ReadMessages()
         if err != nil {
@@ -81,9 +81,10 @@ Subscribe to a channel and write all incoming messages to stdout:
         for _, channelMessage := range channelMessages {
             fmt.Printf("Got message \"%s\" on channel \"%s\"\n", channelMessage.Message, channelMessage.Channel)
         }
-	}
+    }
 
 Run:
+
     $ mpc sendmessage mychannel 'Did you get the message?'
 
 ## More ?
@@ -101,12 +102,13 @@ A later implementation may improve that and lower the connections opened.
 * One connection specifically for client-to-client (subscription) idle message subsystem
 * One connection for all idle subsystems
 * One connection for all standard commands.
-  That connection will forward the 3 following commands to the subscription idle loop: readmessages, subscribe, unsubscribe.
+That connection will forward the 3 following commands to the subscription idle loop: readmessages, subscribe, unsubscribe.
 
-    subscription idle	main					idle
-    |					| send noidle			|
-    | wait request		|						|
-    |					| send request object	|
-    | process request	|						|
-    | send response		|						|
+
+        subscription idle	main					idle
+        |					| send noidle			|
+        | wait request		|						|
+        |					| send request object	|
+        | process request	|						|
+        | send response		|						|
 
