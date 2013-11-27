@@ -64,7 +64,7 @@ func (c *MPDClient) sendIdleChange(subsystem string) {
 			} else {
 				for _, wantedSubsystem := range idleListener.subsystems {
 					if wantedSubsystem == subsystem {
-						c.log.Println("sending", subsystem, "to", i)
+						c.Logger.Println("sending", subsystem, "to", i)
 						idleListener.Ch <- subsystem
 					}
 				}
@@ -76,19 +76,19 @@ func (c *MPDClient) sendIdleChange(subsystem string) {
 func (c *MPDClient) idleLoop() {
 	defer func() {
 		if err := recover(); err != nil {
-			c.log.Panicf("Panic in idleloop: %s\n", err)
+			c.Logger.Panicf("Panic in idleloop: %s\n", err)
 		}
 	}()
 	for {
-		c.log.Println("Entering idle mode")
+		c.Logger.Println("Entering idle mode")
 		id, err := c.idleConn.Cmd("idle")
 		if err != nil {
 			panic(err)
 		}
 
-		c.log.Println("Idle mode ready1")
+		c.Logger.Println("Idle mode ready1")
 		c.idleConn.StartResponse(id)
-		c.log.Println("Idle mode ready2")
+		c.Logger.Println("Idle mode ready2")
 
 		var subsystem *string
 		var idleErr error
@@ -119,10 +119,10 @@ func (c *MPDClient) idleLoop() {
 		}
 
 		if subsystem != nil {
-			c.log.Println("subsystem", *subsystem, "changed")
+			c.Logger.Println("subsystem", *subsystem, "changed")
 			go c.sendIdleChange(*subsystem)
 		} else {
-			c.log.Println("Noidle triggered")
+			c.Logger.Println("Noidle triggered")
 			select {
 			case <-c.idle.quitCh:
 				return

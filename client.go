@@ -22,6 +22,7 @@ package mpdclient
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/textproto"
 	"regexp"
@@ -33,8 +34,6 @@ import (
 
 const network = "tcp"
 const Debug = false
-
-var uid uint = 1
 
 var responseRegexp = regexp.MustCompile(`(\w+): (.+)`)
 var mpdErrorRegexp = regexp.MustCompile(`ACK \[(\d+)@(\d+)\] {(\w+)} (.+)`)
@@ -86,8 +85,7 @@ type MPDClient struct {
 	pingLoopCh       chan bool
 	idle             *idleState
 	idleListeners    []*idleListener
-	uid              uint
-	log              *log.Logger
+	Logger           *log.Logger
 }
 
 type Version struct {
@@ -124,9 +122,9 @@ func (c *MPDClient) pingLoop() {
 			time.Sleep(15 * time.Second)
 			err := c.Ping()
 			if err != nil {
-				c.log.Println(err)
+				c.Logger.Println(err)
 			} else {
-				c.log.Println("PING OK")
+				c.Logger.Println("PING OK")
 			}
 		}
 	}
@@ -178,7 +176,7 @@ func (c *MPDClient) Cmd(cmd string) *response {
 
 func (c *MPDClient) Close() error {
 	// Shut down idle mode
-	c.log.Println("sending quit command")
+	c.Logger.Println("sending quit command")
 	c.idle.MaybeWait()
 	go func() {
 		c.idle.quitCh <- true
@@ -192,7 +190,7 @@ func (c *MPDClient) Close() error {
 	c.subscriptionConn.EndResponse(id)
 	CloseConn(c.subscriptionConn)
 
-	c.log.Println("sending quit command")
+	c.Logger.Println("sending quit command")
 	go func() {
 		c.idle.quitCh <- true
 	}()
@@ -281,17 +279,13 @@ func newMPDClient(host string, port uint, password string) (*MPDClient, error) {
 		return nil, err
 	}
 
-	mpdcLog, err := newMPDCLogger(uid, Debug)
-	if err != nil {
-		return nil, err
-	}
+	logger := log.New(ioutil.Discard, "", log.LstdFlags)
 
 	var m sync.Mutex
 	c := sync.NewCond(&m)
 	idleState := &idleState{c, false, make(chan bool), make(chan *request), make(chan *response)}
 
-	mpdc := &MPDClient{host, port, *version, conn, idleConn, subscriptionConn, make(chan bool), idleState, []*idleListener{}, uid, mpdcLog}
-	uid++
+	mpdc := &MPDClient{host, port, *version, conn, idleConn, subscriptionConn, make(chan bool), idleState, []*idleListener{}, logger}
 	go mpdc.pingLoop()
 	go mpdc.idleLoop()
 	go mpdc.subscriptionLoop()

@@ -30,11 +30,11 @@ type ChannelMessage struct {
 }
 
 func (c *MPDClient) subscriptionCmd(cmd string) *response {
-	c.log.Println(cmd, "> entering")
+	c.Logger.Println(cmd, "> entering")
 	c.idle.MaybeWait()
 	var r response
 
-	c.log.Println(cmd, "> sending noidle")
+	c.Logger.Println(cmd, "> sending noidle")
 	id, err := c.subscriptionConn.Cmd("noidle")
 	if err != nil {
 		r.Err = err
@@ -47,16 +47,16 @@ func (c *MPDClient) subscriptionCmd(cmd string) *response {
 		r.Err = err
 		return &r
 	}
-	c.log.Println(cmd, "> sent noidle")
+	c.Logger.Println(cmd, "> sent noidle")
 	id, err = c.subscriptionConn.Cmd(cmd)
 	if err != nil {
 		r.Err = err
 		return &r
 	}
-	c.log.Println(cmd, "> sending id", id)
+	c.Logger.Println(cmd, "> sending id", id)
 	var req request = request(id)
 	c.idle.reqCh <- &req
-	c.log.Println(cmd, "> sent, waiting response", id)
+	c.Logger.Println(cmd, "> sent, waiting response", id)
 	res := <-c.idle.resCh
 	return res
 }
@@ -154,19 +154,19 @@ func (c *MPDClient) SendMessage(channel, text string) error {
 func (c *MPDClient) subscriptionLoop() {
 	defer func() {
 		if err := recover(); err != nil {
-			c.log.Panicf("Panic in subscriptionloop: %s\n", err)
+			c.Logger.Panicf("Panic in subscriptionloop: %s\n", err)
 		}
 	}()
 	for {
-		c.log.Println("Entering subscriptionloop")
+		c.Logger.Println("Entering subscriptionloop")
 		id, err := c.subscriptionConn.Cmd("idle message")
 		if err != nil {
 			panic(err)
 		}
 
-		c.log.Println("subscriptionloop ready1")
+		c.Logger.Println("subscriptionloop ready1")
 		c.subscriptionConn.StartResponse(id)
-		c.log.Println("subscriptionloop ready2")
+		c.Logger.Println("subscriptionloop ready2")
 
 		// Signal other goroutines that idle mode is ready
 		c.idle.c.L.Lock()
@@ -203,18 +203,18 @@ func (c *MPDClient) subscriptionLoop() {
 		}
 
 		if subsystem != nil {
-			c.log.Println("subsystem", *subsystem, "changed")
+			c.Logger.Println("subsystem", *subsystem, "changed")
 			go c.sendIdleChange(*subsystem)
 		} else {
-			c.log.Println("Noidle triggered")
+			c.Logger.Println("Noidle triggered")
 			select {
 			case <-c.idle.quitCh:
 				return
 			default:
-				c.log.Println("waiting the request id")
+				c.Logger.Println("waiting the request id")
 				req := <-c.idle.reqCh
 				reqId := uint(*(req))
-				c.log.Println("got request id", reqId)
+				c.Logger.Println("got request id", reqId)
 				c.subscriptionConn.StartResponse(reqId)
 				res := processConnData(c.subscriptionConn)
 				c.subscriptionConn.EndResponse(reqId)
